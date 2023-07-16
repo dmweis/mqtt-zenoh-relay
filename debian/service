@@ -1,0 +1,16 @@
+[Unit]
+Description=Mqtt Zenoh Relay
+After=network-online.target nss-lookup.target
+Wants=network-online.target
+
+[Service]
+User=mqttzenohrelay
+DynamicUser=yes
+StateDirectory=hub_system
+Type=simple
+Restart=on-failure
+RestartSec=5s
+ExecStart=/usr/bin/mqtt-zenoh-relay --config /etc/mqtt_zenoh_relay/settings
+
+[Install]
+WantedBy=default.target

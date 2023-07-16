@@ -1,12 +1,34 @@
 [package]
-authors = ["David Michael Weis <dweis7@gmail.com>"]
+authors = ["David Weis <dweis7@gmail.com>"]
+description = "Relay MQTT messages to Zenoh"
 edition = "2021"
 license = "MIT OR APACHE"
 name = "mqtt-zenoh-relay"
 publish = false
 readme = "README.md"
-repository = "https://github.com/dmweis/zenoh-fun"
+repository = "https://github.com/dmweis/mqtt-zenoh-relay"
 version = "0.1.0"
+
+# Debian package
+
+[package.metadata.deb]
+assets = [
+  [
+    "target/release/mqtt-zenoh-relay",
+    "/usr/bin/",
+    "755",
+  ],
+  [
+    "configuration/settings.yaml",
+    "/etc/mqtt_zenoh_relay/settings.yaml",
+    "644",
+  ],
+]
+conf-files = ["/etc/mqtt_zenoh_relay/settings.yaml"]
+maintainer = "David Weis <dweis7@gmail.com>"
+maintainer-scripts = "debian/"
+
+[package.metadata.deb.systemd-units]
 
 [dependencies]
 anyhow = {version = "1.0", features = ["backtrace"]}
