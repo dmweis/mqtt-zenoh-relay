@@ -3,7 +3,7 @@ mqtt:
   port: 1883
   client_id: mqtt-zenoh-relay
 zenoh:
-  listen: 
+  listen:
     - tcp/zenoh:7447
-  connect: 
+  connect:
     - tcp/zenoh_relay:7447
