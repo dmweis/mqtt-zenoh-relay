@@ -137,10 +137,12 @@ async fn mqtt_receive_loop(
                         None => publish.topic.clone(),
                     };
 
+                    let value: Value = publish.payload.to_vec().into();
+                    let value = value.encoding(Encoding::Exact(KnownEncoding::TextPlain));
                     if let Some(publisher) = zenoh_publisher_table.get(&zenoh_topic) {
                         // reuse publisher
                         publisher
-                            .put(publish.payload.to_vec())
+                            .put(value)
                             .res()
                             .await
                             .map_err(MqttZenohRelayError::ZenohError)?;
@@ -153,7 +155,7 @@ async fn mqtt_receive_loop(
                             .await
                             .map_err(MqttZenohRelayError::ZenohError)?;
                         publisher
-                            .put(publish.payload.to_vec())
+                            .put(value)
                             .res()
                             .await
                             .map_err(MqttZenohRelayError::ZenohError)?;
