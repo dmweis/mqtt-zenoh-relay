@@ -55,7 +55,8 @@ pub struct ZenohConfig {
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct ZenohTopic {
-    pub name: String,
+    pub zenoh_key: String,
+    pub mqtt_topic: String,
     #[serde(default)]
     pub retained: bool,
 }

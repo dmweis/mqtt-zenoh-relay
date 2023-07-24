@@ -4,7 +4,7 @@ use anyhow::Context;
 use clap::Parser;
 use configuration::ZenohTopic;
 use rumqttc::{AsyncClient, Event, EventLoop, Incoming, MqttOptions, Outgoing, QoS};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
@@ -90,11 +90,18 @@ async fn main() -> anyhow::Result<()> {
         .map_err(MqttZenohRelayError::ZenohError)?;
     let zenoh_session = zenoh_session.into_arc();
 
+    // prevent retransmitting of our own messages
+    let ignored_topics = config
+        .zenoh
+        .relayed_topics
+        .iter()
+        .map(|v| v.mqtt_topic.clone())
+        .collect::<HashSet<_>>();
     // zenoh subscriptions
     for subscription in &config.zenoh.relayed_topics {
         info!(?subscription, "Subscribing to zenoh topic");
         let subscriber = zenoh_session
-            .declare_subscriber(&subscription.name)
+            .declare_subscriber(&subscription.zenoh_key)
             .res()
             .await
             .map_err(MqttZenohRelayError::ZenohError)?;
@@ -125,6 +132,7 @@ async fn main() -> anyhow::Result<()> {
                 config.mqtt.subscriptions.clone(),
                 &mut publisher_table,
                 &config.mqtt.mqtt_relay_prefix,
+                &ignored_topics,
             )
             .await
             {
@@ -152,11 +160,17 @@ async fn mqtt_receive_loop(
     mqtt_subscriptions: Vec<String>,
     zenoh_publisher_table: &mut HashMap<String, zenoh::publication::Publisher<'_>>,
     mqtt_relay_prefix: &Option<String>,
+    ignored_topics: &HashSet<String>,
 ) -> anyhow::Result<()> {
     loop {
         match event_loop.poll().await {
             Ok(notification) => match notification {
                 Event::Incoming(Incoming::Publish(publish)) => {
+                    if ignored_topics.contains(&publish.topic) {
+                        info!(topic = publish.topic, "Ignoring retransmit topic");
+                        continue;
+                    }
+
                     let zenoh_topic = match mqtt_relay_prefix {
                         Some(ref prefix) => format!("{}/{}", prefix, publish.topic),
                         None => publish.topic.clone(),
@@ -237,9 +251,9 @@ async fn zenoh_subscribe_loop(
 ) -> anyhow::Result<()> {
     loop {
         let sample = zenoh_subscriber.recv_async().await?;
-        let payload: Vec<u8> = sample.value.try_into()?;
+        let payload = sample.value.payload.contiguous().to_vec();
         mqtt_client
-            .publish(sample.key_expr, MQTT_LOGGER_QOS, topic.retained, payload)
+            .publish(&topic.mqtt_topic, MQTT_LOGGER_QOS, topic.retained, payload)
             .await?;
     }
 }
