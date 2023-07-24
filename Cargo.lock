@@ -1228,11 +1228,12 @@ dependencies = [
 
 [[package]]
 name = "mqtt-zenoh-relay"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "clap 4.3.11",
  "config",
+ "flume",
  "rumqttc",
  "serde",
  "serde_json",

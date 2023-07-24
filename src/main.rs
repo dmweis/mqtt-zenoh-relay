@@ -2,6 +2,7 @@ mod configuration;
 
 use anyhow::Context;
 use clap::Parser;
+use configuration::ZenohTopic;
 use rumqttc::{AsyncClient, Event, EventLoop, Incoming, MqttOptions, Outgoing, QoS};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -46,6 +47,7 @@ async fn main() -> anyhow::Result<()> {
 
     let (mqtt_client, mut event_loop) = AsyncClient::new(mqtt_options, 10);
 
+    // MQTT subscriptions
     for subscription in &config.mqtt.subscriptions {
         mqtt_client.subscribe(subscription, MQTT_LOGGER_QOS).await?;
     }
@@ -87,6 +89,29 @@ async fn main() -> anyhow::Result<()> {
         .await
         .map_err(MqttZenohRelayError::ZenohError)?;
     let zenoh_session = zenoh_session.into_arc();
+
+    // zenoh subscriptions
+    for subscription in &config.zenoh.relayed_topics {
+        info!(?subscription, "Subscribing to zenoh topic");
+        let subscriber = zenoh_session
+            .declare_subscriber(&subscription.name)
+            .res()
+            .await
+            .map_err(MqttZenohRelayError::ZenohError)?;
+        tokio::spawn({
+            let mqtt_client = mqtt_client.clone();
+            let subscription = subscription.clone();
+            async move {
+                loop {
+                    if let Err(err) =
+                        zenoh_subscribe_loop(&mqtt_client, &subscriber, &subscription).await
+                    {
+                        error!(error = %err, "Error in zenoh subscribe loop");
+                    }
+                }
+            }
+        });
+    }
 
     // we could just use `Session::put` for publishing but I like having explicit publishers
     let mut publisher_table: HashMap<String, zenoh::publication::Publisher<'_>> = HashMap::new();
@@ -203,4 +228,18 @@ pub enum MqttZenohRelayError {
     ZenohError(#[from] zenoh::Error),
     #[error("Failed to set zenoh multicast scouting {0:?}")]
     FailedToSetZenohMulticastScouting(Option<bool>),
+}
+
+async fn zenoh_subscribe_loop(
+    mqtt_client: &AsyncClient,
+    zenoh_subscriber: &zenoh::subscriber::Subscriber<'_, flume::Receiver<Sample>>,
+    topic: &ZenohTopic,
+) -> anyhow::Result<()> {
+    loop {
+        let sample = zenoh_subscriber.recv_async().await?;
+        let payload: Vec<u8> = sample.value.try_into()?;
+        mqtt_client
+            .publish(sample.key_expr, MQTT_LOGGER_QOS, topic.retained, payload)
+            .await?;
+    }
 }

@@ -49,6 +49,15 @@ pub struct ZenohConfig {
     /// disable zenoh multicast scouting
     #[serde(default)]
     pub disable_multicast_scouting: bool,
+    #[serde(default)]
+    pub relayed_topics: Vec<ZenohTopic>,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct ZenohTopic {
+    pub name: String,
+    #[serde(default)]
+    pub retained: bool,
 }
 
 // Mqtt
