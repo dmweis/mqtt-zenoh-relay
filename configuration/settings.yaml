@@ -7,3 +7,6 @@ zenoh:
     - tcp/zenoh:7447
   connect:
     - tcp/zenoh_relay:7447
+   relayed_topics:
+    - zenoh_key: some_topic
+      mqtt_topic: some_topic
