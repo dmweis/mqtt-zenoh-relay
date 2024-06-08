@@ -1,0 +1,1 @@
+window.ALL_CRATES = ["mqtt_zenoh_relay"];
